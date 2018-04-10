@@ -1,0 +1,92 @@
+<html>
+<script src="https://rawgit.com/ethers-io/ethers.js/master/dist/ethers.js"></script>
+<script>
+
+/************************************************
+This example uses ethers.js, a JavaScript library
+to access Ethereum. 
+
+The main goal of this file is to
+
+1. encrypt(): encrypt private key
+2. send(): decrypt, sign, and broadcast transaction
+
+It is intentionally created as a separate container
+so that we can use this as a designated private key
+handler, and developers can just import this agent
+and use it instead of worrying about dealing with
+private keys.
+************************************************/
+
+
+/**********************************************
+- encrypt()
+Takes a private key and password as arguments
+and creates a decrypted private key 
+**********************************************/
+var encrypt = function(privateKey, password) {
+  var w;
+  if (privateKey[0] === '0' && privateKey[1] === 'x') {
+    w = new ethers.Wallet(privateKey)
+  } else {
+    w = new ethers.Wallet("0x" + privateKey)
+  }
+  // Encrypt the wallet
+  w.encrypt(password).then(function(json) {
+    console.log(json);
+    // Respond to parent Jasonette app
+    // with the following JSON payload.
+
+    // The parent app will take this and
+    // store it under $global or $cache
+    // for later use.
+    $agent.response({
+      name: "Ethereum",
+      symbol: "ETH",
+      address: w.address,
+      encrypted: json
+    })
+  });
+}
+
+/**********************************************
+- send()
+Takes a transaction obejct, encrypted wallet, and user password
+
+1. decrypts the wallet
+2. signs the input transaction with the decrypted private key
+3. broadcasts it to the network
+**********************************************/
+var send = function(tx, encryptedWallet, password) {
+  // Generate a usable wallet with the encrypted wallet and password
+  ethers.Wallet.fromEncryptedWallet(encryptedWallet, password).then(function(wallet) {
+    // now we can use the wallet to sign and broadcast
+    // We will use rinkeby network to broadcast
+    var provider = new ethers.providers.InfuraProvider(ethers.providers.networks.rinkeby)
+    wallet.provider = provider;
+
+    // Construct transaction
+    var transaction = {};
+    if (tx.to) transaction.to = tx.to;
+    if (tx.from) transaction.from = tx.from;
+    transaction.data = tx.data;
+    transaction.value = ethers.utils.parseEther("0.0");
+
+    // Estimate gas
+    var estimateGasPromise = wallet.estimateGas(transaction);
+    estimateGasPromise.then(function(gasEstimate) {
+      // set the gas limit based on estimate
+      transaction.gasLimit = gasEstimate;
+      // The sendTransaction signs and broadcasts
+      // to the rinkeby network.
+      wallet.sendTransaction(transaction).then(function(res) {
+        // Return the transaction hash back to the parent app
+        $agent.response({ hash: res.hash })
+      });
+    });
+  });
+
+}
+</script>
+</html>
+

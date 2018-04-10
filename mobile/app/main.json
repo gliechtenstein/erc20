@@ -1,0 +1,126 @@
+{
+  "$jason": {
+    "head": {
+      "title": "Main e20",
+      "agents": {
+        "erc20": { "url": "https://gliechtenstein.github.io/erc20/web" }
+      },
+      "actions": {
+        "fetched": {
+          "type": "$set",
+          "options": "{{$jason}}",
+          "success": {
+            "type": "$render"
+          }
+        },
+        "$show": { "trigger": "balance" },
+        "$foreground": { "trigger": "balance" },
+        "balance": [{
+          "{{#if 'wallet' in $global}}": {
+            "type": "$agent.request",
+            "options": {
+              "id": "erc20",
+              "method": "call",
+              "params": [ "balanceOf", [ "{{$global.wallet.address}}" ] ]
+            }
+          }
+        }],
+        "transfer": {
+          "type": "$href",
+          "options": {
+            "url": "https://gliechtenstein.github.io/erc20/mobile/qr/publickey.json",
+            "options": {
+              "caption": "Scan a QR code for Ethereum public key"
+            }
+          },
+          "success": {
+            "type": "$util.alert",
+            "options": {
+              "title": "How many tokens?",
+              "descriptions": "Enter the number of tokens to send",
+              "form": [
+                { "name": "receiver", "value": "{{$jason.response}}" },
+                { "name": "number", "placeholder": "Number of tokens to send" }
+              ]
+            },
+            "success": {
+              "type": "$agent.request",
+              "options": {
+                "id": "erc20",
+                "method": "transaction",
+                "params": [ "transfer", [ "{{$jason.receiver}}", "{{$jason.number}}" ] ]
+              },
+              "success": {
+                "type": "$href",
+                "options": {
+                  "url": "https://gliechtenstein.github.io/erc20/mobile/wallet/wallet.json",
+                  "options": {
+                    "tx": "{{$jason.tx}}"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "styles": {
+        "dark": { "background": "#1a1a1a", "color": "#ffffff" }
+      },
+      "templates": {
+        "body": {
+          "style": { "background": "#1a1a1a", "color": "#ffffff", "border": "none" },
+          "header": {
+            "title": "ERC20 token app",
+            "style": { "background": "#1a1a1a", "color": "#ffffff" }
+          },
+          "layers": [
+            {
+              "type": "image",
+              "url": "https://png.icons8.com/ios-glyphs/100/ffffff/key.png",
+              "action": {
+                "type": "$href",
+                "options": {
+                  "url": "https://gliechtenstein.github.io/erc20/mobile/qr/privatekey.json",
+                  "options": {
+                    "caption": "Import private key by scanning QR code"
+                  }
+                }
+              },
+              "style": { "width": "50", "height": "50", "bottom": "20", "right": "20" }
+            }
+          ],
+          "sections": [
+            {
+              "items": [{
+                "type": "label",
+                "text": "{{$global.wallet ? 'signed in: ' + $global.wallet.address : 'not signed in'}}",
+                "class": "dark"
+              }]
+            },
+            {
+              "items": {
+                "{{#each Object.keys($get)}}": {
+                  "type": "vertical",
+                  "components": [
+                    { "type": "label", "class": "dark", "style": { "font": "HelveticaNeue-Bold", "size": "12" }, "text": "{{this}}" },
+                    { "type": "label", "class": "dark", "text": "{{$root.$get[this].toString()}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "items": [{
+                "type": "button",
+                "text": "Transfer Token",
+                "action": {
+                  "trigger": "transfer"
+                },
+                "style": { "padding": "10", "size": "16", "background": "#7FA100", "color": "#ffffff" }
+              }]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "@": "https://gliechtenstein.github.io/erc20/mobile/qr/scanner.json",
+  "onscan": {
+    "type": "$ok",
+    "options": { "response": "{{$jason.content.split(':')[1]}}" }
+  }
+}

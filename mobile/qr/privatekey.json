@@ -1,0 +1,42 @@
+{
+  "@": "https://gliechtenstein.github.io/erc20/mobile/qr/scanner.json",
+  "onscan": {
+    "type": "$set",
+    "options": {
+      "imported": "{{$jason.content}}"
+    },
+    "success": {
+      "type": "$util.alert",
+      "options": {
+        "title": "Enter Password",
+        "description": "Enter a password to encrypt the wallet",
+        "form": [
+          {
+            "name": "password",
+            "type": "secure"
+          }
+        ]
+      },
+      "success": {
+        "type": "$agent.request",
+        "options": {
+          "id": "eth",
+          "method": "encrypt",
+          "params": [
+            "{{$get.imported}}",
+            "{{$jason.password}}"
+          ]
+        },
+        "success": {
+          "type": "$global.set",
+          "options": {
+            "wallet": "{{$jason}}"
+          },
+          "success": {
+            "type": "$back"
+          }
+        }
+      }
+    }
+  }
+}

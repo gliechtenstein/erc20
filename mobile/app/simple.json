@@ -1,0 +1,74 @@
+{
+  "$jason": {
+    "head": {
+      "title": "One Touch Transfer",
+      "agents": {
+        "erc20": { "url": "https://gliechtenstein.github.io/erc20/web" }
+      },
+      "actions": {
+        "fetched": {
+          "type": "$set",
+          "options": "{{$jason}}",
+          "success": {
+            "type": "$render"
+          }
+        },
+        "$show": { "type": "$render" },
+        "$foreground": { "type": "$render" },
+        "send": {
+          "type": "$agent.request",
+          "options": {
+            "id": "erc20",
+            "method": "transaction",
+            "params": [ "transfer", [ "0x1ecdbe44e61249e7fB098AC07480E50D84E3E9e0", "1" ] ]
+          },
+          "success": {
+            "type": "$href",
+            "options": {
+              "url": "https://gliechtenstein.github.io/erc20/mobile/wallet/wallet.json",
+              "options": {
+                "tx": "{{$jason.tx}}"
+              }
+            }
+          }
+        }
+      },
+      "styles": {
+        "dark": { "background": "#1a1a1a", "color": "#ffffff" }
+      },
+      "templates": {
+        "body": {
+          "style": { "background": "#1a1a1a", "color": "#ffffff", "border": "none" },
+          "header": {
+            "title": "Give 1 Token to Ethan",
+            "style": { "background": "#1a1a1a", "color": "#ffffff" }
+          },
+          "layers": [
+            {
+              "type": "label",
+              "text": "Send!",
+              "action": {
+                "trigger": "send"
+              },
+              "style": { "width": "200", "top": "50%-100", "left": "50%-100", "height": "200", "align": "center", "color": "#ffffff", "size": "40", "background": "#ff0000", "corner_radius": "100", "font": "HelveticaNeue-Bold" }
+            },
+            {
+              "type": "image",
+              "url": "https://png.icons8.com/ios-glyphs/100/ffffff/key.png",
+              "action": {
+                "type": "$href",
+                "options": {
+                  "url": "https://gliechtenstein.github.io/erc20/mobile/qr/privatekey.json",
+                  "options": {
+                    "caption": "Import private key by scanning QR code"
+                  }
+                }
+              },
+              "style": { "width": "30", "height": "30", "bottom": "20", "right": "20" }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

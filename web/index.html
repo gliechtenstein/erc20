@@ -1,0 +1,244 @@
+<html>
+<style>
+body { background: #2a2a2a; color: #ffffff; padding: 100px; }
+.container { max-width: 400px; margin: 0 auto; }
+.container .title { padding: 10px; text-align: center; font-family: "Helvetica Neue", helvetica, arial; }
+.row { display: block; padding: 10px; }
+.row > label { font-family: "Helvetica Neue", helvetica, arial; font-weight: bold; padding: 5px 0; font-size: 12px; display: block; }
+.row .tx { padding: 10px 0; display: block; font-size: 12px; font-family: "Helvetica Neue", helvetica; color: gray; }
+.row input { padding: 5px; width: 100%; }
+</style>
+<script src="https://rawgit.com/ethereum/web3.js/develop/dist/web3.min.js"></script>
+<script src="https://www.celljs.org/cell.js"></script>
+<script>
+/************************************
+  ERC20 Contract ABI
+************************************/
+var abi = [ { "constant": true, "inputs": [], "name": "name", "outputs": [ { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_spender", "type": "address" }, { "name": "_value", "type": "uint256" } ], "name": "approve", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [], "name": "totalSupply", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_from", "type": "address" }, { "name": "_to", "type": "address" }, { "name": "_value", "type": "uint256" } ], "name": "transferFrom", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [], "name": "INITIAL_SUPPLY", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [], "name": "decimals", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_spender", "type": "address" }, { "name": "_subtractedValue", "type": "uint256" } ], "name": "decreaseApproval", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "_owner", "type": "address" } ], "name": "balanceOf", "outputs": [ { "name": "balance", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [], "name": "symbol", "outputs": [ { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_to", "type": "address" }, { "name": "_value", "type": "uint256" } ], "name": "transfer", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_spender", "type": "address" }, { "name": "_addedValue", "type": "uint256" } ], "name": "increaseApproval", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "_owner", "type": "address" }, { "name": "_spender", "type": "address" } ], "name": "allowance", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "inputs": [], "payable": false, "stateMutability": "nonpayable", "type": "constructor" }, { "anonymous": false, "inputs": [ { "indexed": true, "name": "owner", "type": "address" }, { "indexed": true, "name": "spender", "type": "address" }, { "indexed": false, "name": "value", "type": "uint256" } ], "name": "Approval", "type": "event" }, { "anonymous": false, "inputs": [ { "indexed": true, "name": "from", "type": "address" }, { "indexed": true, "name": "to", "type": "address" }, { "indexed": false, "name": "value", "type": "uint256" } ], "name": "Transfer", "type": "event" } ];
+
+
+/**********************
+  Contract Methods
+**********************/
+
+
+/******************************************
+- transaction()
+makes contract method calls that create
+transactions
+******************************************/
+var transaction = function(method, args, callback) {
+
+  // contract init
+  if (typeof web3 === 'undefined') {
+    web3 = new Web3(new Web3.providers.HttpProvider(rpcaddr));
+  }
+
+  // Instantiate contract object from abi and contract address
+  var Contract = web3.eth.contract(abi);
+  var contract = Contract.at(dest);
+
+  // Transaction default
+  var tx = {
+    to: contract.address,
+    gasLimit: 21000,
+    gasPrice: 20000000000
+  }
+
+  /********************************************
+  If 'window.$agent' exists, that means 
+  the app is being loaded from Jasonette
+  because Jasonette automatically injects
+  the '$agent' object at load
+  *****************************************/
+  if (window.$agent) {
+    // Since this is being called as a Jasonette agent,
+
+    // 1. we are going to use the low level API "getData" to export the transaction
+    tx.data = contract[method].getData.apply(this, args)
+
+    // 2. respond back to the parent app using '$agent.response'
+    $agent.response({ tx: tx })
+  }
+
+  /********************************************
+  No 'window.$agent', therefore it means
+  it's just a regular load in a browser
+  *****************************************/
+  else {
+    // Regular web3 contract method call
+    contract[method].sendTransaction.apply(this, args.concat([
+      tx,
+      function(err, res) {
+        if (err) {
+          console.log(err)
+        } else {
+          callback(res);
+        }
+      }
+    ]))
+  }
+}
+
+/******************************************
+- call()
+makes contract method calls that ONLY READ
+from the blockchain and DO NOT create
+transactions
+******************************************/
+var call = function(method, args, callback) {
+
+  // contract init
+  if (typeof web3 === 'undefined') {
+    web3 = new Web3(new Web3.providers.HttpProvider(rpcaddr));
+  }
+  var Contract = web3.eth.contract(abi);
+  var contract = Contract.at(dest);
+
+  contract[method].call.apply(this, args.concat([
+    function(err, res) {
+      var str = ((typeof res === 'string') ? res : res.toString(10));
+      var response = {};
+      response[method] = str;
+      if (callback) { callback(str) }
+      if (window.$agent) { window.$agent.trigger("fetched", response) }
+    }
+  ]))
+}
+
+
+/*****************************************
+
+  View Components
+
+  1. ReadComponent
+    UI Components that only read from Ethereum
+
+  2. TxComponent
+    UI Components that read AND write from Ethereum
+
+  Each of These functions returns a JSON object that 
+  describe HTML node, which cell.js than turns
+  into the DOM. Check out https://www.celljs.org
+  to learn more.
+
+*****************************************/
+
+var ReadComponent = function(o) {
+  var method = o.method;
+  var params = o.params;
+  return {
+    class: "row",
+    $components: [{
+      $type: "label",
+      $text: method
+    }, {
+      $type: "input",
+      disabled: "disabled",
+      placeholder: "Loading...",
+      $init: function() {
+        // calls the 'call' function defined above
+        var self = this;
+        call(method, params, function(res) { self._update(res) })
+      },
+      _update: function(res) { this.value = res }
+    }]
+  }
+}
+var TxComponent = function(o) {
+  var method = o.method;
+  var params = o.params;
+  return {
+    class: "row",
+    _update: function(res) { this.querySelector(".label")._update(res) },
+    _tx: function(r) { this.querySelector(".tx")._update(r) },
+    _values: {},
+    $components: [{
+      $type: "label",
+      $text: method,
+      class: "label",
+      _update: function(res) { this.$text = method + ": " + res }
+    }, {
+      $components: params.map(function(param) {
+        return {
+          $type: "input",
+          placeholder: param,
+          oninput: function(e) { this._values[param] = this.value }
+        }
+      })
+    }, {
+      $type: "br"
+    }, {
+      // a button to send a transaction
+      $type: "button", $text: "Send",
+      onclick: function(e) {
+        var self = this;
+        // calls the 'transaction' function defined above
+        transaction("transfer", [this._values._to, this._values._value], function(res) {
+          self._tx(res)
+        });
+      }
+    }, {
+      // Display only after a trasaction has gone through
+      $type: "a",
+      class: "tx",
+      target: "_blank",
+      _update: function(t) {
+        this.href = "https://rinkeby.etherscan.io/tx/" + t;
+        this.$text = "View Transaction";
+      }
+    }]
+  }
+}
+
+
+/******************************************
+
+  Main App
+
+******************************************/
+/*
+// Mainnet test
+var dest = "0xd26114cd6EE289AccF82350c8d8487fedB8A0C07"; // OMG
+var dest = "0xf230b790e05390fc8295f4d3f60332c93bed42e2"; // Tron
+var dest = "0x9a642d6b3368ddc662CA244bAdf32cDA716005BC"; // qtum
+var rpcaddr = "https://mainnet.infura.io"
+*/
+// Rinkeby test
+var dest = "0x3823619872186eff668aad8192590faaffef6a5f";
+var rpcaddr = "https://rinkeby.infura.io"
+
+var app =  {
+  $cell: true,
+  class: "container",
+  $init: function() {
+    if (typeof web3 === 'undefined') {
+      web3 = new Web3(new Web3.providers.HttpProvider(rpcaddr));
+    }
+  },
+  $components: [{
+    class: "title",
+    $components: [{
+      $type: "h5",
+      $init: function() { this.$text = "Signed in as: " + web3.eth.defaultAccount }
+    }]
+  }, {
+    $init: function() {
+      // Need to initialize inside $init because we need to wait for web3 instance to initialize
+      this.$components = [
+        { method: "name", params: [] },
+        { method: "symbol", params: [] },
+        { method: "totalSupply", params: [] },
+        { method: "balanceOf", params: [web3.eth.defaultAccount] }
+      ].map(ReadComponent)
+    }
+  }, {
+    $type: "hr"
+  }, {
+    $init: function() {
+      this.$components = [{ method: "transfer", params: ["_to", "_value"] }].map(TxComponent)
+    }
+  }]
+}
+</script>
+</html>

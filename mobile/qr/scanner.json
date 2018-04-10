@@ -1,0 +1,44 @@
+{
+  "$jason": {
+    "head": {
+      "title": "QR Scanner",
+      "agents": {
+        "eth": { "url": "https://gliechtenstein.github.io/erc20/mobile/wallet/wallet.html" }
+      },
+      "actions": {
+        "$vision.ready": {
+          "type": "$vision.scan"
+        },
+        "$vision.onscan": {
+          "@": "$document.onscan"
+        },
+        "$load": {
+          "type": "$render"
+        }
+      },
+      "templates": {
+        "body": {
+          "background": {
+            "type": "camera",
+            "options": {
+              "device": "back"
+            }
+          },
+          "layers": [
+            {
+              "type": "label",
+              "text": "{{$params.caption}}",
+              "style": {
+                "background": "rgba(0,0,0,0.7)",
+                "padding": "10",
+                "color": "#ffffff",
+                "font": "HelveticaNeue",
+                "size": "12"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

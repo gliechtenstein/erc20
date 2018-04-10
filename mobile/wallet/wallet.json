@@ -1,0 +1,59 @@
+{
+  "$jason": {
+    "head": {
+      "title": "Eth Transaction Sandbox",
+      "agents": {
+        "eth": { "url": "https://gliechtenstein.github.io/erc20/mobile/wallet/wallet.html" }
+      },
+      "actions": {
+        "$load": {
+          "type": "$util.alert",
+          "options": {
+            "title": "Enter Password",
+            "description": "Enter the password you used to encrypt the wallet",
+            "form": [ { "name": "password", "type": "secure" } ]
+          },
+          "success": {
+            "type": "$agent.request",
+            "options": {
+              "id": "eth",
+              "method": "send",
+              "params": [ "{{$params.tx}}", "{{$global.wallet.encrypted}}", "{{$jason.password}}" ]
+            },
+            "success": {
+              "type": "$global.set",
+              "options": {
+                "transactions": "{{$global.transactions ? $global.transactions.concat($jason) : [$jason]}}"
+              },
+              "success": {
+                "type": "$util.banner",
+                "options": {
+                  "title": "Transaction Sent!", "description": "Successfully sent the transaction."
+                },
+                "success": {
+                  "type": "$back"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "body": {
+      "background": "#1a1a1a",
+      "layers": [{
+        "type": "image",
+        "url": "https://gliechtenstein.github.io/images/coin.gif",
+        "style": {
+          "top": "50%-75",
+          "left": "50%-150",
+          "width": "300"
+        }
+      }],
+      "header": {
+        "title": "Transaction",
+        "style": { "background": "#1a1a1a", "color": "#ffffff" }
+      }
+    }
+  }
+}
