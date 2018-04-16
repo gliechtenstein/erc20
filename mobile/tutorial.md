@@ -39,7 +39,333 @@ To send an ERC20 token to another rinkeby address,
 You can try the alternative UI at https://gliechtenstein.github.io/erc20/mobile/app/simple.json
 
 
-# How the Mobile App works
+# Overview
+
+Here's how the app is structured:
+
+![structure](https://gliechtenstein.github.io/images/eth_structure.png)
+
+Above diagram is a quick overview of the overall data flow.
+
+- The user interacts with the native UI. 
+- The native UI makes a request to the “DApp container” (which contains your web3 DApp)
+- And the DApp container makes a request to the “Wallet container” (for now, just think of it as a mobile equivalent of MetaMask)
+- The Wallet container then connects to Ethereum
+
+All of these are inter-connected through the JSON-RPC protocol, and the application — all three modules — is entirely described as a JSON markup.
+
+![markup](https://gliechtenstein.github.io/images/jasonette_markup.png)
+
+Now let’s take a look at each module in detail.
+
+> Note:
+>
+> If this is the first time you’ve heard of Jasonette, I recommend reading this quick intro to Jasonette first:
+
+- Read tutorial: [How to build cross-platform mobile apps using nothing more than a JSON markup](https://medium.freecodecamp.org/how-to-build-cross-platform-mobile-apps-using-nothing-more-than-a-json-markup-f493abec1873)
+- Watch video tutorial on JASON syntax: [Building a native app in 12 minutes with Jasonette](http://docs.jasonette.com/#d-learn-jason-syntax)
+
+## 1. Let's build a DApp container in JSON
+
+To integrate your existing DApp into the native app using Jasonette, you simply embed the DApp into the native app as a sandboxed HTML/JavaScript execution context ([“agent”](http://jasonette.com/agent)). It’s almost like embedding as an IFRAME but the difference is:
+
+1. You’re embedding it into a mobile app, not into another web page.
+2. Unlike an iframe, a 2-way communication channel is established by default
+
+Declaring an agent involves simply adding 3 lines of JSON to the existing app markup:
+
+```
+{
+  "$jason": {
+    "head": {
+      "title": "Web3 DApp in a mobile app",
+      "agents": {
+        "eth": {
+          "url": "https://gliechtenstein.github.io/erc20/web"
+        }
+      },
+      ...
+    }
+  }
+}
+```
+
+We initialize the DApp container by loading from https://gliechtenstein.github.io/erc20/web and name it eth, which will be used as the ID when we make JSON-RPC calls in the future.
+
+![agent initialize](https://gliechtenstein.github.io/images/jasonette_initialize.png)
+
+Once initialized, we can [make JSON-RPC calls into this DApp container](http://docs.jasonette.com/agents/#3-make-json-rpc-calls) and [natively handle events](http://docs.jasonette.com/actions/#action-registry) triggered from the DApp container, all by using just a JSON markup. The overall event & data flow will look like this:
+
+![agent communication](https://gliechtenstein.github.io/images/agent_communication.png)
+
+Here’s the overview of above diagram:
+
+1. The user ONLY interacts with the native UI. To the user the DApp is invisible and it simply functions as a data source. (Step 1)
+2. The native module forwards the user request to the DApp container through JSON-RPC (Step 2)
+3. The DApp container then makes a request to Ethereum network (Step 3), and when it gets a response back (Step 4), forwards it back to the parent native app (Step 5)
+
+For example, we can make a JSON-RPC call into our DApp container every time the view is displayed, by listening to a `$show` event and making an `$agent.request` action call (Step 2 from the diagram):
+
+
+```
+{
+  "$jason": {
+    "head": {
+      ...
+      "actions": {
+        "$show": [{
+          "{{#if 'wallet' in $global}}": {
+            "type": "$agent.request",
+            "options": {
+              "id": "eth",
+              "method": "call",
+              "params": [ "balanceOf", [ "{{$global.wallet.address}}" ] ]
+            },
+            "success": {
+              ...
+            }
+          }
+        }],
+        ...
+```
+
+Above markup will first check if a global variable named wallet exists (`"{{#if ‘wallet' in $global}}"`). If it does, it means the user has already imported a wallet previously so we go on to the next step, the "$agent.request" action.
+
+> Quick Primer on Jasonette Actions: 
+>
+> Actions are like functions, expressed in JSON. All “actions” in Jasonette are described with at most four attributes: "type", "options", "success", and "error".
+>
+> "type" is the name of the action (sort of like an API method), "options" is the parameters you pass to it, "success" is the callback that gets executed when the action succeeds. "error" is the error callback that gets run when something goes wrong. The "success" and "error" callbacks can be nested to create a sequence of instructions.
+
+
+The above JSON markup describes “Find an agent named eth (which we initialized from above), then find a JavaScript function named call from the agent. And finally, run it by passing the arguments "balanceOf" and ["{{$global.wallet.address}}"] which evaluates to the wallet address if the user has already imported one.
+So if the wallet address was "0xabcdefghijklmnop", above JSON markup will make a JavaScript function call:
+
+```
+call("balanceOf", ["0xabcdefghijklmnop"])
+```
+
+If we look into the agent to see what’s going on inside the call JavaScript function, it would look something like this:
+
+```
+var call = function( ... ) {
+  ...
+  contract.balanceOf.call(function(err, result) {
+    ...
+  })
+}
+```
+
+The DApp requests a balanceOf method call to the deployed ERC20 token contract and waits for the response with a callback function. (Step 3 and 4 from the diagram)
+
+When we get the response back from Ethereum network, we need to send it back to the native app who requested it in the first place through $agent.request API. We do this through the built-in $agent.response method (Step 5).
+
+```
+contract.balanceOf.call(function(err, result) {
+  ...
+  $agent.response(result);
+})
+```
+
+Note that we’re basically using our DApp as a “backend” to the mobile app instead of rendering to its own DOM. The $agent.response JavaScript function will return the result back to the $agent.request action which triggered off everything. We’ll take a look at how we deal with this in the next section.
+
+## 2. Let’s Build the Native UI in JSON
+
+Now that we have the data from the $agent.response method call from the previous section, we are all ready to render it. Let’s return back to the original $agent.request action. Previously we only looked at the options object, but this time we will focus on the "success" callback which gets triggered when the agent responds through the $agent.response JavaScript method.
+
+```
+{
+  "$jason": {
+    "head": {
+      ...
+      "actions": {
+        "$show": [{
+          "{{#if 'wallet' in $global}}": {
+            "type": "$agent.request",
+            "options": {
+              "id": "eth",
+              "method": "call",
+              "params": [ "balanceOf", [ "{{$global.wallet.address}}" ] ]
+            },
+            "success": {
+              "type": "$set",
+              "options": "{{$jason}}",
+              "success": {
+               "type": "$render"
+              }
+            }
+          }
+        }],
+        ...
+```
+
+In the "success” callback we see another action "$set". This action is used to set a local variable.
+
+We also see a template expression "{{$jason}}". That expression would evaluate to the value returned from the agent via $agent.response.
+
+> Quick Intro: How do return values work?
+>
+> In Jasonette whenever an action is run, its return value is always returned as $jason inside the next "success" callback action.
+
+In this case if the return value was { "balanceOf": 100000 }, that will be the value of $jason when the $set action is executed. The template expression would evaluate to the following result:
+
+```
+...
+"type": "$set",
+"options": {
+  "balanceOf": 100000
+},
+"success": {
+  "type": "$render"
+}
+...
+```
+
+The $set action will set the local variable "balanceOf"’s value to 100000.
+
+After the local variable is set, it goes onto the next success callback action "$render". The $render action renders the template with the current data on the stack. The $render action automatically looks for a JSON template under $jason.head.templates.body and renders it if it finds one.
+
+The rendering is a two step process:
+
+1. Parse: Select the data JSON in the current stack and transform it with a template JSON
+2. Render: Interpret the transformed result into native UI layout.
+
+The first step is “parsing” and it’s done by a library called SelectTransform — built into Jasonette as a dependency—which is kind of like Handlerbars, but instead of using an HTML template, it uses a JSON template to transform one JSON to another:
+
+![ST](https://selecttransform.github.io/site/src/st.gif)
+
+After the parsing is complete, the second step is to actually render the parsed markup into a native layout. The Jasonette rendering engine takes the parsed result from step 1 and interprets it and turns it into native layout according to the syntax you can find here:
+
+- [Jasonett View Markup Syntax](http://docs.jasonette.com/document/#body)
+
+The native layout engine is flexible enough to describe most of what you would want in a native app, purely in a single JSON markup. Here are some places where you can check out public examples:
+
+- [Jasonette Example Gallery](http://docs.jasonette.com/examples/)
+- [Jasonette Web](http://web.jasonette.com/)
+
+For our MVP app, we will serve it from a remote JSON hosted on github. The template starts here: https://github.com/gliechtenstein/erc20/blob/master/mobile/app/main.json#L70
+
+The end result would look something like this:
+
+![erc app](https://gliechtenstein.github.io/images/jasonette_erc.png)
+
+## 3. Let’s Build a QR Code Scanner in JSON
+
+From the app you will notice the key icon at the bottom right corner. When you press it, it should take you to a full screen camera screen that looks like this:
+
+![jasonette qr code scanner](https://gliechtenstein.github.io/images/jasonette_qr.jpeg)
+
+That’s because there’s an $href action attached to that button, which sends you to the URL that contains another JSON markup that self-constructs into the QR code scanner view:
+
+```
+...
+{
+  "type": "image",
+  "url": "https://png.icons8.com/ios-glyphs/100/ffffff/key.png",
+  "action": {
+    "type": "$href",
+    "options": {
+      "url": "https://gliechtenstein.github.io/erc20/mobile/qr/privatekey.json",
+      "options": {
+        "caption": "Import private key by scanning QR code"
+      }
+    }
+  }
+},
+...
+```
+
+This QR code scanner view is also described entirely as a JSON markup. If you look at the link https://gliechtenstein.github.io/erc20/mobile/qr/privatekey.json you will see that it starts with:
+
+```
+{
+  "@": "https://gliechtenstein.github.io/erc20/mobile/qr/scanner.json",
+  "onscan": {
+    ...
+```
+
+The "@" attribute is called “Mixin”, and it lets you mix in another JSON into the current JSON at load time. Basically when this JSON is loaded, it immediately makes another request to fetch the JSON at https://gliechtenstein.github.io/erc20/mobile/qr/scanner.json and mixes all its root attributes into the current JSON tree. You can learn more about mixins here:
+
+- [Mixin Documentation](https://docs.jasonette.com/mixin/)
+- Mixin Tutorial Series
+  - Remote mixin: http://blog.jasonette.com/2017/02/27/mixins/
+  - Self mixin: http://blog.jasonette.com/2017/03/02/self-mixin/
+
+After all the mixin has been resolved we are left with a JSON that mostly looks like the scanner.json but with the "onscan" attribute mixed into $jason.head.actions.$vision.onscan.
+
+- The background is set to "type": "camera" 
+- The “import private key by scanning QR code” caption is a floating label layer
+
+And we also listen for QR code scan event using the $vision.onscan event. Here’s what happens when the QR code is scanned:
+
+1. The $vision.onscan event is triggered
+2. It asks for a user input password using $util.alert.
+3. It calls an agent function to encrypt the scanned private key with the password.
+4. Take the encrypted wallet and set it as $global.wallet variable
+5. Return back to the main view, thanks to $back action.
+
+You can learn more about QR code scanning here:
+
+- Tutorial: Build a QRCode/Barcode scanning app with 26 lines of JSON: https://medium.com/@gliechtenstein/build-a-qrcode-barcode-scanning-app-with-26-lines-of-json-b83453d39197
+- Documentation: http://docs.jasonette.com/actions/#vision
+
+## 4. Let’s Build a Wallet Container in JSON
+
+We have so far learned how to query Ethereum, how to import a private key using QR code. Now it’s time to actually spend money from the wallet we imported.
+
+Writing to Ethereum is trickier than reading. We must be more careful because it deals with creating actual transactions and sending real money.
+
+Normally when building a regular DApp, we use the web3.js library to make an API call like this:
+
+```
+contract.transfer.sendTransaction(receiver, tokens, {
+  to: contract.address,
+  gasLimit: 21000,
+  gasPrice: 20000000000
+}, function(err, result) {
+  // Render the DOM with result
+})
+```
+
+This method sendTransaction actually does two things:
+
+1. Create an encoded transaction object for a contract method called "transfer".
+2. Sign and broadcast the transaction object to Ethereum via JSON-RPC.
+
+For our project, instead of having the DApp handle both, we will:
+
+1. Let our DApp container handle only the first part of encoding a transaction
+2. and create a new separate container called “Wallet container” to handle the second part
+
+By separating the two, the DApp container doesn’t have to deal with private keys. Instead it delegates it to the wallet container just like how MetaMask deals with this issue automatically. That way the DApp developer can just focus on the application logic.
+
+So instead of using the sendTransaction method, we first use an API called getData to get a transaction object:
+
+```
+var tx = contract.transfer.getData(receiver, tokens)
+```
+
+And then pass that back to the parent app through the $agent.response API:
+
+```
+$agent.response({ tx: tx })
+```
+
+The parent native app then will pass it along to our new wallet view.
+
+![wallet](https://gliechtenstein.github.io/images/jasonette_wallet.png)
+
+The wallet view (and the wallet agent it contains) will take this unsigned transaction data, sign it, and then broadcast it through Infura. You can check out the wallet view source code here: https://github.com/gliechtenstein/erc20/blob/master/mobile/wallet/wallet.json
+
+Here’s the wallet agent code: https://github.com/gliechtenstein/erc20/blob/master/mobile/wallet/wallet.html
+
+Note that the “wallet view” is a completely separate sandboxed view of its own, just like how MetaMask opens up in a new popup browser. This is by design. This insulates the DApp developer from ever having to deal with private keys.
+
+
+
+# Step by Step Explanation on Implementation Details
+
+We've looked at how the app is structured on a high level. Now let's walk through each file to see how it's **actually** implemented.
 
 First, it's easier to understand everything if you remember that each JSON file is a view (or gets mixed into another JSON to form a view). It's pretty much like HTML in that everything centers around a "page", except that every "page" is a native view.
 
