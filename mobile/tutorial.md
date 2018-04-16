@@ -1,8 +1,6 @@
 # Quickstart
 
-It will be much easier to understand how everything works if you understand how Jasonette works.
-
-A quick way to get started:
+It will be much easier to understand how everything works if you understand how Jasonette works. A quick way to catch up on Jasonette:
 
 1. Read the tutorial at: https://medium.freecodecamp.org/how-to-build-cross-platform-mobile-apps-using-nothing-more-than-a-json-markup-f493abec1873
 2. Watch the intro video on basics of Jasonette markup syntax: http://docs.jasonette.com/#d-learn-jason-syntax
